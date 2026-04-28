@@ -1,0 +1,46 @@
+# Environment & Secrets (NEVER commit)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+/secrets/
+
+# Docker
+.docker
+docker-compose.override.yml
+
+# Database dumps
+*.sql
+*.sql.gz
+dump/
+backups/
+
+# Application logs
+logs/
+*.log
+
+# Node modules (if applicable)
+node_modules/
+npm-debug.log
+
+# Build artifacts
+dist/
+build/
+*.pyc
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+.tmp/
+temp/
