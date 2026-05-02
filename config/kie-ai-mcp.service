@@ -1,0 +1,15 @@
+[Unit]
+Description=KIE.ai MCP Server for OpenClaw
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /docker/openclaw-qage/kie-ai-mcp-server.py
+Environment=KIE_AI_API_KEY=${KIE_AI_API_KEY}
+Environment=KIE_AI_BASE_URL=https://api.kie.ai
+Environment=KIE_MCP_PORT=18900
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
