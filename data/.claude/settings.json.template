@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "atlassian": {
+      "command": "/data/.npm-global/bin/mcp-atlassian",
+      "env": {
+        "ATLASSIAN_BASE_URL": "https://symbicore.atlassian.net",
+        "ATLASSIAN_EMAIL": "donovan@symbicore.com",
+        "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
+      }
+    },
+    "fireflies": {
+      "command": "/data/.npm-global/bin/fireflies-mcp-server",
+      "env": {
+        "FIREFLIES_API_KEY": "${FIREFLIES_API_KEY}"
+      }
+    }
+  }
+}

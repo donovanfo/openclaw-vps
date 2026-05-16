@@ -16,4 +16,11 @@ services:
     volumes:
       - ./data:/data
       - ./data/linuxbrew:/home/linuxbrew
+    networks:
+      - default
+      - openclaw-paperclip
+    entrypoint: ["/bin/bash", "/data/start.sh"]
 
+networks:
+  openclaw-paperclip:
+    external: true

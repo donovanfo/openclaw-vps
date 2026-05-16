@@ -1,0 +1,55 @@
+# ── Large binaries & package caches (do NOT commit) ───────────────────────
+linuxbrew/
+node_modules/
+.npm/
+.npm-global/
+.cache/
+.local/
+.codex/
+
+# ── Rotating auth tokens & OAuth state ────────────────────────────────────
+.claude/.credentials.json
+.claude/.claude.json
+.claude/backups/
+.claude/projects/
+.claude/sessions/
+
+# ── Ephemeral session data ─────────────────────────────────────────────────
+*.jsonl
+*.jsonl.deleted.*
+*.jsonl.reset.*
+*.jsonl.checkpoint.*
+.openclaw/agents/*/sessions/
+.openclaw/media/
+.openclaw/tasks/
+.openclaw/delivery-queue/
+
+# ── Live secrets & auth ────────────────────────────────────────────────────
+.openclaw/credentials/
+
+# ── Runtime state (regenerated on start) ──────────────────────────────────
+.openclaw/logs/
+.openclaw/memory/main.sqlite
+.openclaw/devices/pending.json
+
+# ── Stale config backups (keep latest openclaw.json only) ─────────────────
+.openclaw/openclaw.json.bak
+.openclaw/openclaw.json.bak.*
+.openclaw/openclaw.json.clobbered.*
+.openclaw/openclaw.json.last-good
+.openclaw/openclaw.json.pre-*
+.openclaw/cron/jobs.json.bak
+.openclaw/cron/jobs.json.pre-*
+
+# ── Workspace ephemeral ────────────────────────────────────────────────────
+.openclaw/workspace/state/
+.openclaw/workspace/sessions/
+.openclaw/workspace/paperclip-claimed-api-key.json
+.openclaw/workspace/main.sqlite
+
+# ── Misc ───────────────────────────────────────────────────────────────────
+.claude.json
+
+# Sensitive config (secrets embedded — use .template versions)
+.openclaw/openclaw.json
+.claude/settings.json

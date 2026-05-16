@@ -1,0 +1,434 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "12cf90ac-8d7a-4590-af49-379ac561b6d0",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "Fireflies Meeting Processing & Jira Task Creation",
+      "description": "Process all new Fireflies meeting transcripts, extract action items, create Jira tasks, and dispatch to agent team for execution",
+      "enabled": true,
+      "createdAtMs": 1777946341736,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 17 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "FIREFLIES PROCESSING PIPELINE\n\n1. Query Fireflies MCP for all new meetings since last run\n2. Extract transcripts and audio summaries\n3. Process each meeting:\n   - Identify action items, decisions, deliverables\n   - Classify by urgency and owner\n   - Extract technical/business requirements\n4. Create Jira tasks:\n   - One task per action item/deliverable\n   - Include: owner, deadline, requirements, context link\n   - Apply labels: fireflies, meeting:ACTION_DATE\n5. Route to agent team:\n   - Assign to appropriate specialist agent\n   - Delegate execution to pre-review stage\n   - Set status: todo\n6. Report back:\n   - # of new meetings processed\n   - # of tasks created\n   - # of tasks in execution\n   - Any blockers requiring GM escalation",
+        "timeoutSeconds": 300
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5110356840"
+      },
+      "state": {}
+    },
+    {
+      "id": "b65eaac9-b344-4f27-b0f0-3b4fb03f701e",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "HubSpot Email to Jira Task Pipeline",
+      "description": "Twice daily: pull real client emails from HubSpot, create Jira tasks in client workspaces, match thread replies to existing tasks as comments",
+      "enabled": true,
+      "createdAtMs": 1777946508528,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 12,17 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HUBSPOT EMAIL PROCESSING PIPELINE\n\n1. Query HubSpot API for new emails since last run\n2. Filter for real client emails (remove spam, auto-replies, internal)\n3. For each real client email:\n   - Identify client by email domain or address\n   - Determine if it is a thread reply or new email\n   \n4. If NEW EMAIL:\n   - Extract: subject, sender, body, date\n   - Create new Jira task in client's workspace\n   - Title: [CLIENT] Subject line\n   - Description: Email content + sender info + HubSpot link\n   - Label: hubspot-email\n   - Status: todo\n   - Assign: Task Router for triage\n   \n5. If THREAD REPLY:\n   - Search existing Jira tasks in client workspace by email thread ID\n   - Match to open task (status: todo or in_progress)\n   - Add email as comment: sender info + reply body\n   - Link to HubSpot email record\n   \n6. Report back:\n   - # of new emails processed\n   - # of new tasks created\n   - # of replies matched to tasks\n   - Any ambiguous/unmatched emails requiring GM review",
+        "timeoutSeconds": 600
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5110356840"
+      },
+      "state": {}
+    },
+    {
+      "id": "1601bf78-54f4-4325-bd79-e8a085fc3d02",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "Daily Pipeline Metrics Summary",
+      "description": "2x daily summary: HubSpot email tickets + Fireflies meeting tasks created in Jira",
+      "enabled": true,
+      "createdAtMs": 1778107751334,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8,18 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY PIPELINE SUMMARY\n\nReport only these two metrics:\n1. HubSpot email tickets summarized & created in Jira today\n2. Fireflies meeting action items created in Jira today\n\nFormat: Two numbers, one line each. If zero, just report 0.\nExample output:\nHubSpot tickets: 3\nFireflies tasks: 5\n\nIf either pipeline is blocked, report: [BLOCKED]"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5110356840"
+      },
+      "state": {}
+    },
+    {
+      "id": "42315c3b-36db-4518-86b5-595ee388cffd",
+      "agentId": "brand-strategist",
+      "sessionKey": "agent:brand-strategist:heartbeat",
+      "name": "Brand Strategist — Task Heartbeat",
+      "description": "Periodic check for Jira tasks labeled brand-inbox or assigned to this agent; execute and deliver.",
+      "enabled": true,
+      "createdAtMs": 1778943171448,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */2 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HEARTBEAT — BRAND STRATEGIST\n\n1. Check Jira (SYM project) for tasks:\n   JQL: labels = \"brand-inbox\" AND status in (todo, in_progress) ORDER BY priority DESC, updated ASC\n   Also: assignee = currentUser() AND status in (todo, in_progress)\n\n2. If tasks found: pick the highest-priority task, check it out, and execute.\n   - Read full description and comment history for context\n   - Read client config from clients/{client_id}/config.json if client work\n   - Use your skills: brand positioning, messaging architecture, voice and tone, competitive positioning\n   - Produce the deliverable\n   - Export to appropriate format (.docx/.xlsx/.pptx) via tools/md_to_export.py\n   - Upload to client SharePoint \"For Review\" via tools/sharepoint.py\n   - Add SharePoint URL as a Jira comment, assign for review\n   - Transition task to in_review\n\n3. If no tasks: log \"No tasks in brand-inbox queue\" and proceed to reflection.\n\n4. If blocked: comment with the blocker, add `blocked` label, Telegram Donovan at 5110356840 if unresolved >2h.\n\n5. Operate within your skill domain only. Escalate out-of-scope tasks back to GM (label: awaiting-approval).\n\n## End-of-Session Reflection\n\nAfter executing (or if no tasks): spend 2–3 minutes reflecting on your work today.\n\n1. Review any tasks you completed or attempted today in Jira\n2. Ask yourself:\n   - What worked well in my approach?\n   - What would I do differently next time?\n   - What did I learn about this client, this skill, or this type of task?\n3. Append 2–3 concise learnings to /data/.openclaw/workspace/learnings/brand-strategist.md\n   Format: `- [YYYY-MM-DD] {learning}`\n   Example: `- [2026-05-16] Genuine Comfort copy performs better with specific warranty claims upfront, not buried in body.`\n\nKeep learnings specific and actionable. \"Client X prefers Y format\" beats \"I learned about client preferences.\"\nIf nothing to learn today, write: `- [YYYY-MM-DD] No tasks completed. Queue empty.`",
+        "timeoutSeconds": 600
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "ed60a0b1-017c-423f-b2d6-d9b8756e1f73",
+      "agentId": "creative-director",
+      "sessionKey": "agent:creative-director:heartbeat",
+      "name": "Creative Director — Task Heartbeat",
+      "description": "Periodic check for Jira tasks labeled creative-inbox or assigned to this agent; execute and deliver.",
+      "enabled": true,
+      "createdAtMs": 1778943171448,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 */2 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HEARTBEAT — CREATIVE DIRECTOR\n\n1. Check Jira (SYM project) for tasks:\n   JQL: labels = \"creative-inbox\" AND status in (todo, in_progress) ORDER BY priority DESC, updated ASC\n   Also: assignee = currentUser() AND status in (todo, in_progress)\n\n2. If tasks found: pick the highest-priority task, check it out, and execute.\n   - Read full description and comment history for context\n   - Read client config from clients/{client_id}/config.json if client work\n   - Use your skills: creative strategy, campaign concepting, visual direction, creative briefs\n   - Produce the deliverable\n   - Export to appropriate format (.docx/.xlsx/.pptx) via tools/md_to_export.py\n   - Upload to client SharePoint \"For Review\" via tools/sharepoint.py\n   - Add SharePoint URL as a Jira comment, assign for review\n   - Transition task to in_review\n\n3. If no tasks: log \"No tasks in creative-inbox queue\" and proceed to reflection.\n\n4. If blocked: comment with the blocker, add `blocked` label, Telegram Donovan at 5110356840 if unresolved >2h.\n\n5. Operate within your skill domain only. Escalate out-of-scope tasks back to GM (label: awaiting-approval).\n\n## End-of-Session Reflection\n\nAfter executing (or if no tasks): spend 2–3 minutes reflecting on your work today.\n\n1. Review any tasks you completed or attempted today in Jira\n2. Ask yourself:\n   - What worked well in my approach?\n   - What would I do differently next time?\n   - What did I learn about this client, this skill, or this type of task?\n3. Append 2–3 concise learnings to /data/.openclaw/workspace/learnings/creative-director.md\n   Format: `- [YYYY-MM-DD] {learning}`\n   Example: `- [2026-05-16] Genuine Comfort copy performs better with specific warranty claims upfront, not buried in body.`\n\nKeep learnings specific and actionable. \"Client X prefers Y format\" beats \"I learned about client preferences.\"\nIf nothing to learn today, write: `- [YYYY-MM-DD] No tasks completed. Queue empty.`",
+        "timeoutSeconds": 600
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "c099395a-4af3-4671-b44d-cae0fa22418f",
+      "agentId": "graphic-designer",
+      "sessionKey": "agent:graphic-designer:heartbeat",
+      "name": "Graphic Designer — Task Heartbeat",
+      "description": "Periodic check for Jira tasks labeled design-inbox or assigned to this agent; execute and deliver.",
+      "enabled": true,
+      "createdAtMs": 1778943171448,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */3 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HEARTBEAT — GRAPHIC DESIGNER\n\n1. Check Jira (SYM project) for tasks:\n   JQL: labels = \"design-inbox\" AND status in (todo, in_progress) ORDER BY priority DESC, updated ASC\n   Also: assignee = currentUser() AND status in (todo, in_progress)\n\n2. If tasks found: pick the highest-priority task, check it out, and execute.\n   - Read full description and comment history for context\n   - Read client config from clients/{client_id}/config.json if client work\n   - Use your skills: visual asset production, social graphics, display ads, presentations, brand materials\n   - Produce the deliverable\n   - Export to appropriate format (.docx/.xlsx/.pptx) via tools/md_to_export.py\n   - Upload to client SharePoint \"For Review\" via tools/sharepoint.py\n   - Add SharePoint URL as a Jira comment, assign for review\n   - Transition task to in_review\n\n3. If no tasks: log \"No tasks in design-inbox queue\" and proceed to reflection.\n\n4. If blocked: comment with the blocker, add `blocked` label, Telegram Donovan at 5110356840 if unresolved >2h.\n\n5. Operate within your skill domain only. Escalate out-of-scope tasks back to GM (label: awaiting-approval).\n\n## End-of-Session Reflection\n\nAfter executing (or if no tasks): spend 2–3 minutes reflecting on your work today.\n\n1. Review any tasks you completed or attempted today in Jira\n2. Ask yourself:\n   - What worked well in my approach?\n   - What would I do differently next time?\n   - What did I learn about this client, this skill, or this type of task?\n3. Append 2–3 concise learnings to /data/.openclaw/workspace/learnings/graphic-designer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n   Example: `- [2026-05-16] Genuine Comfort copy performs better with specific warranty claims upfront, not buried in body.`\n\nKeep learnings specific and actionable. \"Client X prefers Y format\" beats \"I learned about client preferences.\"\nIf nothing to learn today, write: `- [YYYY-MM-DD] No tasks completed. Queue empty.`",
+        "timeoutSeconds": 600
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "e0378e49-d317-4f43-bcb4-f85b2fc1ed7a",
+      "agentId": "growth-marketer",
+      "sessionKey": "agent:growth-marketer:heartbeat",
+      "name": "Growth Marketer — Task Heartbeat",
+      "description": "Periodic check for Jira tasks labeled growth-inbox or assigned to this agent; execute and deliver.",
+      "enabled": true,
+      "createdAtMs": 1778943171448,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */2 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HEARTBEAT — GROWTH MARKETER\n\n1. Check Jira (SYM project) for tasks:\n   JQL: labels = \"growth-inbox\" AND status in (todo, in_progress) ORDER BY priority DESC, updated ASC\n   Also: assignee = currentUser() AND status in (todo, in_progress)\n\n2. If tasks found: pick the highest-priority task, check it out, and execute.\n   - Read full description and comment history for context\n   - Read client config from clients/{client_id}/config.json if client work\n   - Use your skills: demand gen, funnel optimization, paid acquisition, lead nurturing, CRO, CAC/LTV\n   - Produce the deliverable\n   - Export to appropriate format (.docx/.xlsx/.pptx) via tools/md_to_export.py\n   - Upload to client SharePoint \"For Review\" via tools/sharepoint.py\n   - Add SharePoint URL as a Jira comment, assign for review\n   - Transition task to in_review\n\n3. If no tasks: log \"No tasks in growth-inbox queue\" and proceed to reflection.\n\n4. If blocked: comment with the blocker, add `blocked` label, Telegram Donovan at 5110356840 if unresolved >2h.\n\n5. Operate within your skill domain only. Escalate out-of-scope tasks back to GM (label: awaiting-approval).\n\n## End-of-Session Reflection\n\nAfter executing (or if no tasks): spend 2–3 minutes reflecting on your work today.\n\n1. Review any tasks you completed or attempted today in Jira\n2. Ask yourself:\n   - What worked well in my approach?\n   - What would I do differently next time?\n   - What did I learn about this client, this skill, or this type of task?\n3. Append 2–3 concise learnings to /data/.openclaw/workspace/learnings/growth-marketer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n   Example: `- [2026-05-16] Genuine Comfort copy performs better with specific warranty claims upfront, not buried in body.`\n\nKeep learnings specific and actionable. \"Client X prefers Y format\" beats \"I learned about client preferences.\"\nIf nothing to learn today, write: `- [YYYY-MM-DD] No tasks completed. Queue empty.`",
+        "timeoutSeconds": 600
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "bfa22f36-0a74-4253-99bb-d95b8821ef88",
+      "agentId": "ux-designer",
+      "sessionKey": "agent:ux-designer:heartbeat",
+      "name": "UX Designer — Task Heartbeat",
+      "description": "Periodic check for Jira tasks labeled ux-inbox or assigned to this agent; execute and deliver.",
+      "enabled": true,
+      "createdAtMs": 1778943171448,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 */3 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HEARTBEAT — UX DESIGNER\n\n1. Check Jira (SYM project) for tasks:\n   JQL: labels = \"ux-inbox\" AND status in (todo, in_progress) ORDER BY priority DESC, updated ASC\n   Also: assignee = currentUser() AND status in (todo, in_progress)\n\n2. If tasks found: pick the highest-priority task, check it out, and execute.\n   - Read full description and comment history for context\n   - Read client config from clients/{client_id}/config.json if client work\n   - Use your skills: UX strategy, wireframes, user flows, UX audits, information architecture\n   - Produce the deliverable\n   - Export to appropriate format (.docx/.xlsx/.pptx) via tools/md_to_export.py\n   - Upload to client SharePoint \"For Review\" via tools/sharepoint.py\n   - Add SharePoint URL as a Jira comment, assign for review\n   - Transition task to in_review\n\n3. If no tasks: log \"No tasks in ux-inbox queue\" and proceed to reflection.\n\n4. If blocked: comment with the blocker, add `blocked` label, Telegram Donovan at 5110356840 if unresolved >2h.\n\n5. Operate within your skill domain only. Escalate out-of-scope tasks back to GM (label: awaiting-approval).\n\n## End-of-Session Reflection\n\nAfter executing (or if no tasks): spend 2–3 minutes reflecting on your work today.\n\n1. Review any tasks you completed or attempted today in Jira\n2. Ask yourself:\n   - What worked well in my approach?\n   - What would I do differently next time?\n   - What did I learn about this client, this skill, or this type of task?\n3. Append 2–3 concise learnings to /data/.openclaw/workspace/learnings/ux-designer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n   Example: `- [2026-05-16] Genuine Comfort copy performs better with specific warranty claims upfront, not buried in body.`\n\nKeep learnings specific and actionable. \"Client X prefers Y format\" beats \"I learned about client preferences.\"\nIf nothing to learn today, write: `- [YYYY-MM-DD] No tasks completed. Queue empty.`",
+        "timeoutSeconds": 600
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "e4f56109-89d0-4987-81c2-3facfc1dd762",
+      "agentId": "web-developer",
+      "sessionKey": "agent:web-developer:heartbeat",
+      "name": "Web Developer — Task Heartbeat",
+      "description": "Periodic check for Jira tasks labeled dev-inbox or assigned to this agent; execute and deliver.",
+      "enabled": true,
+      "createdAtMs": 1778943171448,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */2 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HEARTBEAT — WEB DEVELOPER\n\n1. Check Jira (SYM project) for tasks:\n   JQL: labels = \"dev-inbox\" AND status in (todo, in_progress) ORDER BY priority DESC, updated ASC\n   Also: assignee = currentUser() AND status in (todo, in_progress)\n\n2. If tasks found: pick the highest-priority task, check it out, and execute.\n   - Read full description and comment history for context\n   - Read client config from clients/{client_id}/config.json if client work\n   - Use your skills: frontend/backend development, site architecture, performance optimization, code reviews\n   - Produce the deliverable\n   - Export to appropriate format (.docx/.xlsx/.pptx) via tools/md_to_export.py\n   - Upload to client SharePoint \"For Review\" via tools/sharepoint.py\n   - Add SharePoint URL as a Jira comment, assign for review\n   - Transition task to in_review\n\n3. If no tasks: log \"No tasks in dev-inbox queue\" and proceed to reflection.\n\n4. If blocked: comment with the blocker, add `blocked` label, Telegram Donovan at 5110356840 if unresolved >2h.\n\n5. Operate within your skill domain only. Escalate out-of-scope tasks back to GM (label: awaiting-approval).\n\n## End-of-Session Reflection\n\nAfter executing (or if no tasks): spend 2–3 minutes reflecting on your work today.\n\n1. Review any tasks you completed or attempted today in Jira\n2. Ask yourself:\n   - What worked well in my approach?\n   - What would I do differently next time?\n   - What did I learn about this client, this skill, or this type of task?\n3. Append 2–3 concise learnings to /data/.openclaw/workspace/learnings/web-developer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n   Example: `- [2026-05-16] Genuine Comfort copy performs better with specific warranty claims upfront, not buried in body.`\n\nKeep learnings specific and actionable. \"Client X prefers Y format\" beats \"I learned about client preferences.\"\nIf nothing to learn today, write: `- [YYYY-MM-DD] No tasks completed. Queue empty.`",
+        "timeoutSeconds": 600
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "6e1cb869-ebc3-4d6b-9117-ba3c58bd8da2",
+      "agentId": "qa-manager",
+      "sessionKey": "agent:qa-manager:heartbeat",
+      "name": "QA Manager — Task Heartbeat",
+      "description": "Periodic check for Jira tasks labeled qa-inbox or assigned to this agent; execute and deliver.",
+      "enabled": true,
+      "createdAtMs": 1778943171448,
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 */2 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "HEARTBEAT — QA MANAGER\n\n1. Check Jira (SYM project) for tasks:\n   JQL: labels = \"qa-inbox\" AND status in (todo, in_progress) ORDER BY priority DESC, updated ASC\n   Also: assignee = currentUser() AND status in (todo, in_progress)\n\n2. If tasks found: pick the highest-priority task, check it out, and execute.\n   - Read full description and comment history for context\n   - Read client config from clients/{client_id}/config.json if client work\n   - Use your skills: testing strategy, launch checklists, quality review, edge case identification\n   - Produce the deliverable\n   - Export to appropriate format (.docx/.xlsx/.pptx) via tools/md_to_export.py\n   - Upload to client SharePoint \"For Review\" via tools/sharepoint.py\n   - Add SharePoint URL as a Jira comment, assign for review\n   - Transition task to in_review\n\n3. If no tasks: log \"No tasks in qa-inbox queue\" and proceed to reflection.\n\n4. If blocked: comment with the blocker, add `blocked` label, Telegram Donovan at 5110356840 if unresolved >2h.\n\n5. Operate within your skill domain only. Escalate out-of-scope tasks back to GM (label: awaiting-approval).\n\n## End-of-Session Reflection\n\nAfter executing (or if no tasks): spend 2–3 minutes reflecting on your work today.\n\n1. Review any tasks you completed or attempted today in Jira\n2. Ask yourself:\n   - What worked well in my approach?\n   - What would I do differently next time?\n   - What did I learn about this client, this skill, or this type of task?\n3. Append 2–3 concise learnings to /data/.openclaw/workspace/learnings/qa-manager.md\n   Format: `- [YYYY-MM-DD] {learning}`\n   Example: `- [2026-05-16] Genuine Comfort copy performs better with specific warranty claims upfront, not buried in body.`\n\nKeep learnings specific and actionable. \"Client X prefers Y format\" beats \"I learned about client preferences.\"\nIf nothing to learn today, write: `- [YYYY-MM-DD] No tasks completed. Queue empty.`",
+        "timeoutSeconds": 600
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "af1af861-f1ea-43d4-bdbb-5494f6e56e5b",
+      "agentId": "brand-strategist",
+      "sessionKey": "agent:brand-strategist:reflection",
+      "name": "Brand Strategist — Daily Reflection",
+      "description": "Daily 10pm CT reflection: review completed work, extract learnings, update /data/.openclaw/workspace/learnings/brand-strategist.md",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY REFLECTION — BRAND STRATEGIST\n\nIt is 10pm CT. Reflect on your work today before the day closes.\n\n1. Search Jira for tasks you worked on today:\n   JQL: project = SYM AND updated >= startOfDay() AND (assignee = currentUser() OR labels = \"brand-inbox\") ORDER BY updated DESC\n\n2. For each completed or attempted task:\n   - What was the quality of your output? Be honest.\n   - What would you do differently with better information or more time?\n   - Any new patterns you noticed: client preferences, skill edge cases, tool failures?\n\n3. Append 2–3 bullet learnings to /data/.openclaw/workspace/learnings/brand-strategist.md\n   Format: `- [YYYY-MM-DD] {learning}`\n\n4. Review your previous 5 entries in that file. Are you making the same mistakes? If yes, note the pattern explicitly.\n\n5. If a recurring failure needs a skill update, add a comment to `/data/.openclaw/workspace/learnings/skill-update-requests.md`:\n   `- [YYYY-MM-DD] [brand-strategist] Need: {what the skill should do differently}`\n\nThe goal: get 1% better every day through deliberate reflection. Be specific. Be honest. Brief entries beat long ones.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "c88b7f02-367b-4782-885a-2087caeb538a",
+      "agentId": "creative-director",
+      "sessionKey": "agent:creative-director:reflection",
+      "name": "Creative Director — Daily Reflection",
+      "description": "Daily 10pm CT reflection: review completed work, extract learnings, update /data/.openclaw/workspace/learnings/creative-director.md",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY REFLECTION — CREATIVE DIRECTOR\n\nIt is 10pm CT. Reflect on your work today before the day closes.\n\n1. Search Jira for tasks you worked on today:\n   JQL: project = SYM AND updated >= startOfDay() AND (assignee = currentUser() OR labels = \"creative-inbox\") ORDER BY updated DESC\n\n2. For each completed or attempted task:\n   - What was the quality of your output? Be honest.\n   - What would you do differently with better information or more time?\n   - Any new patterns you noticed: client preferences, skill edge cases, tool failures?\n\n3. Append 2–3 bullet learnings to /data/.openclaw/workspace/learnings/creative-director.md\n   Format: `- [YYYY-MM-DD] {learning}`\n\n4. Review your previous 5 entries in that file. Are you making the same mistakes? If yes, note the pattern explicitly.\n\n5. If a recurring failure needs a skill update, add a comment to `/data/.openclaw/workspace/learnings/skill-update-requests.md`:\n   `- [YYYY-MM-DD] [creative-director] Need: {what the skill should do differently}`\n\nThe goal: get 1% better every day through deliberate reflection. Be specific. Be honest. Brief entries beat long ones.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "8adfc3c3-c842-4e03-ace8-018463049356",
+      "agentId": "graphic-designer",
+      "sessionKey": "agent:graphic-designer:reflection",
+      "name": "Graphic Designer — Daily Reflection",
+      "description": "Daily 10pm CT reflection: review completed work, extract learnings, update /data/.openclaw/workspace/learnings/graphic-designer.md",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY REFLECTION — GRAPHIC DESIGNER\n\nIt is 10pm CT. Reflect on your work today before the day closes.\n\n1. Search Jira for tasks you worked on today:\n   JQL: project = SYM AND updated >= startOfDay() AND (assignee = currentUser() OR labels = \"design-inbox\") ORDER BY updated DESC\n\n2. For each completed or attempted task:\n   - What was the quality of your output? Be honest.\n   - What would you do differently with better information or more time?\n   - Any new patterns you noticed: client preferences, skill edge cases, tool failures?\n\n3. Append 2–3 bullet learnings to /data/.openclaw/workspace/learnings/graphic-designer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n\n4. Review your previous 5 entries in that file. Are you making the same mistakes? If yes, note the pattern explicitly.\n\n5. If a recurring failure needs a skill update, add a comment to `/data/.openclaw/workspace/learnings/skill-update-requests.md`:\n   `- [YYYY-MM-DD] [graphic-designer] Need: {what the skill should do differently}`\n\nThe goal: get 1% better every day through deliberate reflection. Be specific. Be honest. Brief entries beat long ones.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "a1bff432-3df3-4103-86f2-665d4d9d6670",
+      "agentId": "growth-marketer",
+      "sessionKey": "agent:growth-marketer:reflection",
+      "name": "Growth Marketer — Daily Reflection",
+      "description": "Daily 10pm CT reflection: review completed work, extract learnings, update /data/.openclaw/workspace/learnings/growth-marketer.md",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY REFLECTION — GROWTH MARKETER\n\nIt is 10pm CT. Reflect on your work today before the day closes.\n\n1. Search Jira for tasks you worked on today:\n   JQL: project = SYM AND updated >= startOfDay() AND (assignee = currentUser() OR labels = \"growth-inbox\") ORDER BY updated DESC\n\n2. For each completed or attempted task:\n   - What was the quality of your output? Be honest.\n   - What would you do differently with better information or more time?\n   - Any new patterns you noticed: client preferences, skill edge cases, tool failures?\n\n3. Append 2–3 bullet learnings to /data/.openclaw/workspace/learnings/growth-marketer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n\n4. Review your previous 5 entries in that file. Are you making the same mistakes? If yes, note the pattern explicitly.\n\n5. If a recurring failure needs a skill update, add a comment to `/data/.openclaw/workspace/learnings/skill-update-requests.md`:\n   `- [YYYY-MM-DD] [growth-marketer] Need: {what the skill should do differently}`\n\nThe goal: get 1% better every day through deliberate reflection. Be specific. Be honest. Brief entries beat long ones.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "01e45cef-ff76-4fe3-af76-9f5cfee670f8",
+      "agentId": "ux-designer",
+      "sessionKey": "agent:ux-designer:reflection",
+      "name": "UX Designer — Daily Reflection",
+      "description": "Daily 10pm CT reflection: review completed work, extract learnings, update /data/.openclaw/workspace/learnings/ux-designer.md",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY REFLECTION — UX DESIGNER\n\nIt is 10pm CT. Reflect on your work today before the day closes.\n\n1. Search Jira for tasks you worked on today:\n   JQL: project = SYM AND updated >= startOfDay() AND (assignee = currentUser() OR labels = \"ux-inbox\") ORDER BY updated DESC\n\n2. For each completed or attempted task:\n   - What was the quality of your output? Be honest.\n   - What would you do differently with better information or more time?\n   - Any new patterns you noticed: client preferences, skill edge cases, tool failures?\n\n3. Append 2–3 bullet learnings to /data/.openclaw/workspace/learnings/ux-designer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n\n4. Review your previous 5 entries in that file. Are you making the same mistakes? If yes, note the pattern explicitly.\n\n5. If a recurring failure needs a skill update, add a comment to `/data/.openclaw/workspace/learnings/skill-update-requests.md`:\n   `- [YYYY-MM-DD] [ux-designer] Need: {what the skill should do differently}`\n\nThe goal: get 1% better every day through deliberate reflection. Be specific. Be honest. Brief entries beat long ones.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "09178b3d-de99-4c17-bc17-79fe8faf6e35",
+      "agentId": "web-developer",
+      "sessionKey": "agent:web-developer:reflection",
+      "name": "Web Developer — Daily Reflection",
+      "description": "Daily 10pm CT reflection: review completed work, extract learnings, update /data/.openclaw/workspace/learnings/web-developer.md",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY REFLECTION — WEB DEVELOPER\n\nIt is 10pm CT. Reflect on your work today before the day closes.\n\n1. Search Jira for tasks you worked on today:\n   JQL: project = SYM AND updated >= startOfDay() AND (assignee = currentUser() OR labels = \"dev-inbox\") ORDER BY updated DESC\n\n2. For each completed or attempted task:\n   - What was the quality of your output? Be honest.\n   - What would you do differently with better information or more time?\n   - Any new patterns you noticed: client preferences, skill edge cases, tool failures?\n\n3. Append 2–3 bullet learnings to /data/.openclaw/workspace/learnings/web-developer.md\n   Format: `- [YYYY-MM-DD] {learning}`\n\n4. Review your previous 5 entries in that file. Are you making the same mistakes? If yes, note the pattern explicitly.\n\n5. If a recurring failure needs a skill update, add a comment to `/data/.openclaw/workspace/learnings/skill-update-requests.md`:\n   `- [YYYY-MM-DD] [web-developer] Need: {what the skill should do differently}`\n\nThe goal: get 1% better every day through deliberate reflection. Be specific. Be honest. Brief entries beat long ones.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "383d731d-aaa5-435f-af23-19bb0f3085c6",
+      "agentId": "qa-manager",
+      "sessionKey": "agent:qa-manager:reflection",
+      "name": "QA Manager — Daily Reflection",
+      "description": "Daily 10pm CT reflection: review completed work, extract learnings, update /data/.openclaw/workspace/learnings/qa-manager.md",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "DAILY REFLECTION — QA MANAGER\n\nIt is 10pm CT. Reflect on your work today before the day closes.\n\n1. Search Jira for tasks you worked on today:\n   JQL: project = SYM AND updated >= startOfDay() AND (assignee = currentUser() OR labels = \"qa-inbox\") ORDER BY updated DESC\n\n2. For each completed or attempted task:\n   - What was the quality of your output? Be honest.\n   - What would you do differently with better information or more time?\n   - Any new patterns you noticed: client preferences, skill edge cases, tool failures?\n\n3. Append 2–3 bullet learnings to /data/.openclaw/workspace/learnings/qa-manager.md\n   Format: `- [YYYY-MM-DD] {learning}`\n\n4. Review your previous 5 entries in that file. Are you making the same mistakes? If yes, note the pattern explicitly.\n\n5. If a recurring failure needs a skill update, add a comment to `/data/.openclaw/workspace/learnings/skill-update-requests.md`:\n   `- [YYYY-MM-DD] [qa-manager] Need: {what the skill should do differently}`\n\nThe goal: get 1% better every day through deliberate reflection. Be specific. Be honest. Brief entries beat long ones.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {},
+      "state": {}
+    },
+    {
+      "id": "3c0c4bbe-c5ba-422f-96e7-8efb8af349d6",
+      "agentId": "main",
+      "sessionKey": "agent:main:fleet-synthesis",
+      "name": "GM — Weekly Fleet Learning Synthesis",
+      "description": "Sunday 11pm CT: read all agent learnings, synthesize cross-fleet patterns, Telegram Donovan with top insights",
+      "enabled": true,
+      "createdAtMs": 1778943893371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 23 * * 0",
+        "tz": "America/Chicago"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "WEEKLY FLEET LEARNING SYNTHESIS\n\nIt is Sunday 11pm CT. Synthesize this week's learnings across all OpenClaw agents.\n\n1. Read all agent learning logs:\n   - /data/.openclaw/workspace/learnings/brand-strategist.md\n   - /data/.openclaw/workspace/learnings/creative-director.md\n   - /data/.openclaw/workspace/learnings/graphic-designer.md\n   - /data/.openclaw/workspace/learnings/growth-marketer.md\n   - /data/.openclaw/workspace/learnings/ux-designer.md\n   - /data/.openclaw/workspace/learnings/web-developer.md\n   - /data/.openclaw/workspace/learnings/qa-manager.md\n   - /data/.openclaw/workspace/learnings/skill-update-requests.md (if exists)\n\n2. Filter to entries from this week only (last 7 days).\n\n3. Identify patterns across agents:\n   - Recurring client preferences or friction points\n   - Skill gaps appearing across multiple agents\n   - Tool or process failures\n   - What is consistently producing good outcomes\n\n4. Write a fleet synthesis to /data/.openclaw/workspace/learnings/fleet-weekly-{today}.md:\n   - Top 3 cross-fleet insights (specific, with agent attribution)\n   - Top 2 skill gaps or improvement opportunities\n   - 1 recommended change (be concrete: what to change, in which skill/soul file, why)\n\n5. Telegram Donovan at 5110356840:\n   \"Fleet weekly synthesis:\n   - Insight: {top insight}\n   - Gap: {top gap}\n   - Recommended change: {recommendation}\"\n\n6. If the recommended change requires a skill or soul update, create a STRATEGIC gate Jira task:\n   Title: \"[STRATEGIC] Fleet learning recommendation: {change}\"\n   Description: evidence from learnings + proposed change + expected improvement\n   Label: awaiting-approval\n\nReplace {today} with the actual date in YYYY-MM-DD format.",
+        "timeoutSeconds": 600
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5110356840"
+      },
+      "state": {}
+    }
+  ]
+}
